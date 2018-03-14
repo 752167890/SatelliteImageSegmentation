@@ -60,6 +60,7 @@ def jaccard_coef_loss(y_true, y_pred):
     return -K.log(jaccard_coef(y_true, y_pred)) + binary_crossentropy(y_pred, y_true)
 
 
+# 设置整个cnnw网络结构
 def get_unet0():
     inputs = Input((num_channels, img_rows, img_cols))
     conv1 = Convolution2D(32, 3, 3, border_mode='same', init='he_uniform')(inputs)
@@ -253,11 +254,12 @@ if __name__ == '__main__':
     f = h5py.File(os.path.join(data_path, 'train_16.h5'), 'r')
 
     X_train = f['train']
-
+    # 获取crops的正确轮廓
     y_train = np.array(f['train_mask'])[:, 5]
+    # 在原本type序号那一列升一下维度，由(25, 3345, 3338) -》(25, 1, 3345, 3338)
     y_train = np.expand_dims(y_train, 1)
     print(y_train.shape)
-
+    # 获取每个训练图片的id
     train_ids = np.array(f['train_ids'])
 
     batch_size = 128

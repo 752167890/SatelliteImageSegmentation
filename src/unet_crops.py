@@ -12,7 +12,6 @@ import h5py
 
 from keras.layers.normalization import BatchNormalization
 
-
 from keras.optimizers import Nadam
 from keras.callbacks import History
 import pandas as pd
@@ -28,7 +27,6 @@ from keras.models import model_from_json
 
 img_rows = 112
 img_cols = 112
-
 
 smooth = 1e-12
 
@@ -46,8 +44,23 @@ def jaccard_coef(y_true, y_pred):
 
 
 def jaccard_coef_int(y_true, y_pred):
+    # K.clip 将输出值y_pred压缩到[0,1]之间，小于min的让它等于min，大于max的元素的值等于max。
+    # K.round 将输入值，转化为最接近的整数，比如：0.9 =》1 ，2.3 =》 2
     y_pred_pos = K.round(K.clip(y_pred, 0, 1))
-
+    '''
+    This means that the index that will be returned by argmax will be taken from the last axis.
+    Your data has some shape (19,19,5,80). This means:
+    Axis = 0 - 19 elements
+    Axis = 1 - 19 elements
+    Axis = 2 - 5 elements
+    Axis = 3 - 80 elements
+    
+    Now, negative numbers work exactly like in python lists, in numpy arrays, etc. Negative numbers represent the inverse order:
+    Axis = -1 = 80 elements
+    Axis = -2 = 5 elements
+    Axis = -3 = 19 elements
+    Axis = -4 = 19 elements
+    '''
     intersection = K.sum(y_true * y_pred_pos, axis=[0, -1, -2])
     sum_ = K.sum(y_true + y_pred_pos, axis=[0, -1, -2])
 
@@ -60,10 +73,16 @@ def jaccard_coef_loss(y_true, y_pred):
     return -K.log(jaccard_coef(y_true, y_pred)) + binary_crossentropy(y_pred, y_true)
 
 
-# 设置整个cnnw网络结构
+# 设置整个cnn网络结构
 def get_unet0():
+    # 输入层
     inputs = Input((num_channels, img_rows, img_cols))
+    # he_uniform---LeCun均匀分布初始化方法
     conv1 = Convolution2D(32, 3, 3, border_mode='same', init='he_uniform')(inputs)
+    # BN层会使得将前一层的激活值重新规范化，即使得其输出数据的均值接近0，其标准差接近1
+    # The valid mean there is no padding around input or feature map,
+    # while same means there are some padding around input or feature map,
+    # making the output feature map's size same as the input's
     conv1 = BatchNormalization(mode=0, axis=1)(conv1)
     conv1 = keras.layers.advanced_activations.ELU()(conv1)
     conv1 = Convolution2D(32, 3, 3, border_mode='same', init='he_uniform')(conv1)
@@ -102,6 +121,7 @@ def get_unet0():
     conv5 = BatchNormalization(mode=0, axis=1)(conv5)
     conv5 = keras.layers.advanced_activations.ELU()(conv5)
 
+    # UpSampling2D:将数据的行和列分别重复size[0]和size[1]次
     up6 = merge([UpSampling2D(size=(2, 2))(conv5), conv4], mode='concat', concat_axis=1)
     conv6 = Convolution2D(256, 3, 3, border_mode='same', init='he_uniform')(up6)
     conv6 = BatchNormalization(mode=0, axis=1)(conv6)
@@ -131,6 +151,8 @@ def get_unet0():
     conv9 = BatchNormalization(mode=0, axis=1)(conv9)
     conv9 = keras.layers.advanced_activations.ELU()(conv9)
     conv9 = Convolution2D(32, 3, 3, border_mode='same', init='he_uniform')(conv9)
+    # 对2D输入（图像）进行裁剪，将在空域维度，即宽和高的方向上裁剪
+    # cropping：长为2的整数tuple，分别为宽和高方向上头部与尾部需要裁剪掉的元素数
     crop9 = Cropping2D(cropping=((16, 16), (16, 16)))(conv9)
     conv9 = BatchNormalization(mode=0, axis=1)(crop9)
     conv9 = keras.layers.advanced_activations.ELU()(conv9)
@@ -142,12 +164,15 @@ def get_unet0():
 
 
 def flip_axis(x, axis):
+    # 将第axis与第0个维度交换
     x = np.asarray(x).swapaxes(axis, 0)
+    # 将第一个维度翻转：  ::-1  是翻转的命令
     x = x[::-1, ...]
     x = x.swapaxes(0, axis)
     return x
 
 
+# 在训练集中随机得到128个112x112的图像
 def form_batch(X, y, batch_size):
     X_batch = np.zeros((batch_size, num_channels, img_rows, img_cols))
     y_batch = np.zeros((batch_size, num_mask_channels, img_rows, img_cols))
@@ -169,6 +194,7 @@ class threadsafe_iter:
     """Takes an iterator/generator and makes it thread-safe by
     serializing call to the `next` method of given iterator/generator.
     """
+
     def __init__(self, it):
         self.it = it
         self.lock = threading.Lock()
@@ -184,8 +210,10 @@ class threadsafe_iter:
 def threadsafe_generator(f):
     """A decorator that takes a generator function and makes it thread-safe.
     """
+
     def g(*a, **kw):
         return threadsafe_iter(f(*a, **kw))
+
     return g
 
 
@@ -197,17 +225,17 @@ def batch_generator(X, y, batch_size, horizontal_flip=False, vertical_flip=False
         for i in range(X_batch.shape[0]):
             xb = X_batch[i]
             yb = y_batch[i]
-
+            # 水平翻转
             if horizontal_flip:
                 if np.random.random() < 0.5:
                     xb = flip_axis(xb, 1)
                     yb = flip_axis(yb, 1)
-
+            # 竖直翻转
             if vertical_flip:
                 if np.random.random() < 0.5:
                     xb = flip_axis(xb, 2)
                     yb = flip_axis(yb, 2)
-
+            # 交换维度
             if swap_axis:
                 if np.random.random() < 0.5:
                     xb = xb.swapaxes(1, 2)
@@ -272,13 +300,14 @@ if __name__ == '__main__':
 
     suffix = 'crops_3_'
     model.compile(optimizer=Nadam(lr=1e-3), loss=jaccard_coef_loss, metrics=['binary_crossentropy', jaccard_coef_int])
-    model.fit_generator(batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
-                        nb_epoch=nb_epoch,
-                        verbose=1,
-                        samples_per_epoch=batch_size * 400,
-                        callbacks=callbacks,
-                        nb_worker=8
-                        )
+    model.fit_generator(
+        batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
+        nb_epoch=nb_epoch,
+        verbose=1,
+        samples_per_epoch=batch_size * 400,
+        callbacks=callbacks,
+        nb_worker=8
+        )
 
     save_model(model, "{batch}_{epoch}_{suffix}".format(batch=batch_size, epoch=nb_epoch, suffix=suffix))
     save_history(history, suffix)
@@ -291,7 +320,7 @@ if __name__ == '__main__':
         verbose=1,
         samples_per_epoch=batch_size * 400,
         callbacks=callbacks,
-        )
+    )
 
     save_model(model, "{batch}_{epoch}_{suffix}".format(batch=batch_size, epoch=nb_epoch, suffix=suffix))
     save_history(history, suffix)

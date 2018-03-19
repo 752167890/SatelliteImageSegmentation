@@ -1,3 +1,4 @@
+# coding:utf-8
 """
 Script that scans 3 band tiff files and creates csv file with columns:
 image_id, width, height

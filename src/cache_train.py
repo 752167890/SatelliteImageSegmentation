@@ -15,6 +15,10 @@ import numpy as np
 data_path = '../data'
 # 读取训练集的轮廓
 train_wkt = pd.read_csv(os.path.join(data_path, 'train_wkt_v4.csv'))
+# 筛选出crops的轮廓
+train_wkt = train_wkt[(train_wkt['ClassType'] == 6) & (train_wkt['MultipolygonWKT'] != 'MULTIPOLYGON EMPTY')]
+# 将Type值重新赋值为1
+train_wkt['ClassType'] = 1
 # 读取边界坐标信息
 gs = pd.read_csv(os.path.join(data_path, 'grid_sizes.csv'), names=['ImageId', 'Xmax', 'Ymin'], skiprows=1)
 # 获取所有图片的w,h,image ID
@@ -35,12 +39,12 @@ def cache_train_16():
     image_rows = min_train_height
     image_cols = min_train_width
 
-    num_channels = 16
+    num_channels = 3
 
-    num_mask_channels = 10
+    num_mask_channels = 1
 
     # 创建一个HDF5文件, 其中create_dataset用于创建给定形状和数据类型的空dataset
-    f = h5py.File(os.path.join(data_path, 'train_16.h5'), 'w', compression='blosc:lz4', compression_opts=9)
+    f = h5py.File(os.path.join(data_path, 'train_3.h5'), 'w', compression='blosc:lz4', compression_opts=9)
 
     # imgs存放读取的数据，imgs_mask存放正确答案所生成的图像
     imgs = f.create_dataset('train', (num_train, num_channels, image_rows, image_cols), dtype=np.float16)
@@ -51,8 +55,8 @@ def cache_train_16():
     i = 0
     # tqdm用于实现进度条
     for image_id in tqdm(sorted(train_wkt['ImageId'].unique())):
-        # 读取图片，16维的数据
-        image = extra_functions.read_image_16(image_id)
+        # 读取图片，3维的数据
+        image = extra_functions.read_image_3(image_id)
         _, height, width = image.shape
         # 截取最小的范围，其余舍弃
         imgs[i] = image[:, :min_train_height, :min_train_width]

@@ -1,6 +1,7 @@
 # coding:utf-8
 from __future__ import division
 
+import matplotlib.pyplot as plt
 import numpy as np
 from keras.models import Model
 from keras.layers import Input, merge, Convolution2D, MaxPooling2D, UpSampling2D, Cropping2D
@@ -30,7 +31,7 @@ img_cols = 112
 
 smooth = 1e-12
 
-num_channels = 16
+num_channels = 3
 num_mask_channels = 1
 
 
@@ -279,12 +280,15 @@ if __name__ == '__main__':
     model = get_unet0()
 
     print('[{}] Reading train...'.format(str(datetime.datetime.now())))
-    f = h5py.File(os.path.join(data_path, 'train_16.h5'), 'r')
+    f = h5py.File(os.path.join(data_path, 'train_3.h5'), 'r')
 
     X_train = f['train']
     # 获取crops的正确轮廓
-    y_train = np.array(f['train_mask'])[:, 5]
+    y_train = np.array(f['train_mask'])[:, 0]
     # 在原本type序号那一列升一下维度，由(25, 3345, 3338) -》(25, 1, 3345, 3338)
+    # for i in range(14):
+    #     plt.imshow(y_train[i, :, :])
+    #     plt.savefig("test-%d" %i)
     y_train = np.expand_dims(y_train, 1)
     print(y_train.shape)
     # 获取每个训练图片的id
@@ -299,29 +303,32 @@ if __name__ == '__main__':
     ]
 
     suffix = 'crops_3_'
+    # https://keras-cn.readthedocs.io/en/latest/other/metrics/
+    # metrics:性能评估函数类似与目标函数, 只不过该性能的评估结果讲不会用于训练.
     model.compile(optimizer=Nadam(lr=1e-3), loss=jaccard_coef_loss, metrics=['binary_crossentropy', jaccard_coef_int])
+    # verbose：日志显示，0为不在标准输出流输出日志信息，1为输出进度条记录，2为每个epoch输出一行记录
     model.fit_generator(
         batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
         nb_epoch=nb_epoch,
         verbose=1,
-        samples_per_epoch=batch_size * 400,
+        samples_per_epoch=batch_size*14,
         callbacks=callbacks,
-        nb_worker=8
+        nb_worker=16
         )
 
     save_model(model, "{batch}_{epoch}_{suffix}".format(batch=batch_size, epoch=nb_epoch, suffix=suffix))
     save_history(history, suffix)
 
-    suffix = 'crops_4_'
-    model.compile(optimizer=Nadam(lr=1e-4), loss=jaccard_coef_loss, metrics=['binary_crossentropy', jaccard_coef_int])
-    model.fit_generator(
-        batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
-        nb_epoch=nb_epoch,
-        verbose=1,
-        samples_per_epoch=batch_size * 400,
-        callbacks=callbacks,
-    )
-
+    # suffix = 'crops_4_'
+    # model.compile(optimizer=Nadam(lr=1e-4), loss=jaccard_coef_loss, metrics=['binary_crossentropy', jaccard_coef_int])
+    # model.fit_generator(
+    #     batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
+    #     nb_epoch=nb_epoch,
+    #     verbose=1,
+    #     samples_per_epoch=batch_size * 400,
+    #     callbacks=callbacks,
+    # )
+    # Save a model to a HDF5 file.
     save_model(model, "{batch}_{epoch}_{suffix}".format(batch=batch_size, epoch=nb_epoch, suffix=suffix))
     save_history(history, suffix)
     f.close()

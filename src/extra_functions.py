@@ -65,6 +65,19 @@ def get_scalers(height, width, x_max, y_min):
     return w_ / x_max, h_ / y_min
 
 
+def polygons2new_mask_layer(height, width, polygons):
+
+    img_mask = np.zeros((height, width), np.uint8)
+    if not polygons:
+        return img_mask
+    int_coords = lambda x: np.array(x).round().astype(np.int32)
+    exteriors = [int_coords(poly.exterior.coords) for poly in polygons]
+    interiors = [int_coords(pi.coords) for poly in polygons for pi in poly.interiors]
+    cv2.fillPoly(img_mask, exteriors, 1)
+    cv2.fillPoly(img_mask, interiors, 0)
+    return img_mask
+
+
 def polygons2mask_layer(height, width, polygons, image_id):
     """
 
@@ -121,10 +134,41 @@ def generate_mask(image_id, height, width, num_mask_channels=10, train=train_wkt
     return mask
 
 
+# 生成自己抓取数据的mask
+def generate_new_mask(file_name, height, width, train):
+    mask = np.zeros((height, width))
+    poly = train['MultipolygonWKT'][(train['file_name'] == file_name)].values[0]
+    polygons = shapely.wkt.loads(poly)
+    mask[:, :] = polygons2new_mask_layer(height, width, polygons)
+    return mask
+
+
+def png2polygons_layer(img, epsilon=0.0, min_area=0.0):
+    # first, find contours with cv2: it's much faster than shapely
+    _, img = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY)
+    _, contours, hierarchy = cv2.findContours(img.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
+    # create approximate contours to have reasonable submission size
+    if epsilon != 0:
+        approx_contours = simplify_contours(contours, epsilon)
+    else:
+        approx_contours = contours
+
+    if not approx_contours:
+        return MultiPolygon()
+
+    all_polygons = find_child_parent(hierarchy, approx_contours, min_area)
+
+    # approximating polygons might have created invalid ones, fix them
+    all_polygons = MultiPolygon(all_polygons)
+
+    all_polygons = fix_invalid_polygons(all_polygons)
+
+    return all_polygons
+
+
 def mask2polygons_layer(mask, epsilon=1.0, min_area=10.0):
     # first, find contours with cv2: it's much faster than shapely
     contours, hierarchy = cv2.findContours(((mask == 1) * 255).astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
-
     # create approximate contours to have reasonable submission size
     if epsilon != 0:
         approx_contours = simplify_contours(contours, epsilon)
@@ -249,6 +293,12 @@ def read_image_3(image_id):
 
     result = np.transpose(np.concatenate([img_3], axis=2), (2, 0, 1))
     return result.astype(np.float16)
+
+
+# 读取自己抓取的数据
+def read_image_new_3(file_name):
+    img_3 = np.transpose(tiff.imread("../testData/image_tiles/{}".format(file_name)), (2, 0, 1)) / 2047.0
+    return img_3.astype(np.float16)
 
 
 def make_prediction_cropped(model, X_train, initial_size=(572, 572), final_size=(388, 388), num_channels=19, num_masks=10):

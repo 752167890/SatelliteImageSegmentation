@@ -5,7 +5,8 @@ import os
 from tqdm import tqdm
 import pandas as pd
 import extra_functions
-import shapely.geometry
+import shapely
+import matplotlib.pyplot as plt
 from numba import jit
 
 from keras.models import model_from_json
@@ -35,7 +36,8 @@ train_wkt = pd.read_csv(os.path.join(data_path, 'train_wkt_v4.csv'))
 gs = pd.read_csv(os.path.join(data_path, 'grid_sizes.csv'), names=['ImageId', 'Xmax', 'Ymin'], skiprows=1)
 shapes = pd.read_csv(os.path.join(data_path, '3_shapes.csv'))
 
-test_ids = shapes.loc[~shapes['image_id'].isin(train_wkt['ImageId'].unique()), 'image_id']
+# test_ids = shapes.loc[~shapes['image_id'].isin(train_wkt['ImageId'].unique()), 'image_id']
+test_ids=[1,2,3,4,5,6,7,8,9,10,11]
 
 result = []
 
@@ -57,12 +59,15 @@ def mask2poly(predicted_mask, threashold, x_scaler, y_scaler):
 
 for image_id in tqdm(test_ids):
     # 读取图片
-    image = extra_functions.read_image_3(image_id)
+    # image = extra_functions.read_image_3(image_id)
+    # 读取自定义训练图片
+    image = np.transpose(plt.imread("../testData/{}.jpg".format(image_id)), (2, 0, 1)) / 2047.0
+    image=image.astype(np.float16)
 
     H = image.shape[1]
     W = image.shape[2]
-    # 获取grid_size的坐标
-    x_max, y_min = extra_functions._get_xmax_ymin(image_id)
+    # # 获取grid_size的坐标
+    # x_max, y_min = extra_functions._get_xmax_ymin(image_id)
     # 预测图片
     predicted_mask = extra_functions.make_prediction_cropped(model, image, initial_size=(112, 112),
                                                              final_size=(112-32, 112-32),
@@ -90,17 +95,16 @@ for image_id in tqdm(test_ids):
                         flip_axis(predicted_mask_v, 1) *
                         flip_axis(predicted_mask_h, 2) *
                         predicted_mask_s.swapaxes(1, 2), 0.25)
+    # # 得到kaggle所要求的grid坐标
+    # x_scaler, y_scaler = extra_functions.get_scalers(H, W, x_max, y_min)
 
-    # 得到kaggle所要求的grid坐标
-    x_scaler, y_scaler = extra_functions.get_scalers(H, W, x_max, y_min)
-
-    mask_channel = 5
-    result += [(image_id, mask_channel + 1, mask2poly(new_mask, threashold, x_scaler, y_scaler))]
-
-submission = pd.DataFrame(result, columns=['ImageId', 'ClassType', 'MultipolygonWKT'])
-
-
-sample = sample.drop('MultipolygonWKT', 1)
-submission = sample.merge(submission, on=['ImageId', 'ClassType'], how='left').fillna('MULTIPOLYGON EMPTY')
-
-submission.to_csv('temp_crops_4.csv', index=False)
+#     mask_channel = 5
+#     result += [(image_id, mask_channel + 1, mask2poly(new_mask, threashold, x_scaler, y_scaler))]
+#
+# submission = pd.DataFrame(result, columns=['ImageId', 'ClassType', 'MultipolygonWKT'])
+#
+#
+# sample = sample.drop('MultipolygonWKT', 1)
+# submission = sample.merge(submission, on=['ImageId', 'ClassType'], how='left').fillna('MULTIPOLYGON EMPTY')
+#
+# submission.to_csv('temp_crops_4.csv', index=False)

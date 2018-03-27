@@ -10,6 +10,7 @@ import extra_functions
 from tqdm import tqdm
 import h5py
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 data_path = '../data'
@@ -66,7 +67,8 @@ def cache_train_16():
                                                      width,
                                                      num_mask_channels=num_mask_channels,
                                                      train=train_wkt)[:, :min_train_height, :min_train_width]
-
+        plt.imshow(imgs_mask[i][0, :, :])
+        plt.savefig("./pic-test/%s-test.png" %image_id)
         ids += [image_id]
         i += 1
     # 好像是为了兼容py3,好像是hdf5的问题。

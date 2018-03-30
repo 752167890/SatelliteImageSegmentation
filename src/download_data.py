@@ -52,8 +52,8 @@ class DownloadThread(threading.Thread):
 
     def run(self):
         time.sleep(np.random.randint(0, 40))
-        ImageWms = WebMapService(self.ImageURL, version='1.1.1')
-        ContourWms = WebMapService(self.ContourURL, version='1.1.1')
+        ImageWms = WebMapService(self.ImageURL, version='1.1.1', timeout=100)
+        ContourWms = WebMapService(self.ContourURL, version='1.1.1', timeout=100)
         x_min = self.x_start
         y_min = self.y_start
         for ii in range(0, self.x_num):
@@ -61,10 +61,18 @@ class DownloadThread(threading.Thread):
                 ll_x_ = x_min + ii * self.x_stride
                 ll_y_ = y_min + jj * self.y_stride
                 bbox = (ll_x_, ll_y_, ll_x_ + self.x_stride, ll_y_ + self.y_stride)
-                img = ImageWms.getmap(layers=['Actueel_ortho25'], srs='EPSG:4326', bbox=bbox, size=(1024, 1024),
-                                 format='image/GeoTIFF', transparent=True)
-                ContourImg = ContourWms.getmap(layers=['aan'], srs='EPSG:4326', bbox=bbox, size=(1024, 1024),
+                try:
+                    img = ImageWms.getmap(layers=['Actueel_ortho25'], srs='EPSG:4326', bbox=bbox, size=(1024, 1024),
+                                          format='image/GeoTIFF', transparent=True)
+                except BaseException:
+                    img = ImageWms.getmap(layers=['Actueel_ortho25'], srs='EPSG:4326', bbox=bbox, size=(1024, 1024),
+                                          format='image/GeoTIFF', transparent=True)
+                try:
+                    ContourImg = ContourWms.getmap(layers=['aan'], srs='EPSG:4326', bbox=bbox, size=(4096, 4096),
                                  format='image/png', transparent=True)
+                except BaseException:
+                    ContourImg = ContourWms.getmap(layers=['aan'], srs='EPSG:4326', bbox=bbox, size=(4096, 4096),
+                                                   format='image/png', transparent=True)
                 filename = "{}_{}_{}_{}.tif".format(bbox[0], bbox[1], bbox[2], bbox[3])
                 filename2 = "{}_{}_{}_{}.png".format(bbox[0], bbox[1], bbox[2], bbox[3])
                 out = open(self.ImageOutDirectory + filename, 'wb')
@@ -80,7 +88,7 @@ class DownloadThread(threading.Thread):
 def download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory):
     parameter = {}
     q = Queue.Queue()
-    thead_num = 5
+    thead_num = 100
     x_min = 4.536343
     y_min = 52.289726
     parameter['ImageURL'] = ImageURL
@@ -115,6 +123,7 @@ def create_contour_csv(contourImagePath, outputPath):
     for file_name in tqdm(sorted(os.listdir(contourImagePath))):
         ContourImg = cv2.imread(contourImagePath + file_name)
         ContourImg = ContourImg[:, :, 0]
+        print(file_name)
         polygons = extra_functions.png2polygons_layer(ContourImg)
         result += [(file_name, shapely.wkt.dumps(polygons))]
     contoursCSV = pd.DataFrame(result, columns=['file_name', 'MultipolygonWKT'])
@@ -123,6 +132,6 @@ def create_contour_csv(contourImagePath, outputPath):
 
 
 if __name__ == '__main__':
-    download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
+    # download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
     create_contour_csv(ContourOutDirectory, testData_path)
 

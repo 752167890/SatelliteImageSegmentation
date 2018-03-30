@@ -7,6 +7,7 @@ import os
 import shapely
 import shapely.geometry
 import shapely.affinity
+from skimage import measure
 import h5py
 import pandas as pd
 import tifffile as tiff
@@ -44,9 +45,9 @@ while decrement:
         decrement = True
 
 data_path = '../data'
-train_wkt = pd.read_csv(os.path.join(data_path, 'train_wkt_v4.csv'))
-gs = pd.read_csv(os.path.join(data_path, 'grid_sizes.csv'), names=['ImageId', 'Xmax', 'Ymin'], skiprows=1)
-shapes = pd.read_csv(os.path.join(data_path, '3_shapes.csv'))
+# train_wkt = pd.read_csv(os.path.join(data_path, 'train_wkt_v4.csv'))
+# gs = pd.read_csv(os.path.join(data_path, 'grid_sizes.csv'), names=['ImageId', 'Xmax', 'Ymin'], skiprows=1)
+# shapes = pd.read_csv(os.path.join(data_path, '3_shapes.csv'))
 
 epsilon = 1e-15
 
@@ -113,7 +114,7 @@ def polygons2mask(height, width, polygons, image_id):
     return result
 
 
-def generate_mask(image_id, height, width, num_mask_channels=10, train=train_wkt):
+def generate_mask(image_id, height, width, num_mask_channels, train):
     """
 
     :param image_id:
@@ -145,8 +146,49 @@ def generate_new_mask(file_name, height, width, train):
 
 def png2polygons_layer(img, epsilon=0.0, min_area=0.0):
     # first, find contours with cv2: it's much faster than shapely
-    _, img = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY)
-    _, contours, hierarchy = cv2.findContours(img.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_TC89_KCOS)
+    # 如果没有轮廓，则不需要处理
+    if img.min() == img.max():
+        img[: , :] = 0
+    else:
+        # 需要检测的为0，不需要的为255
+        _, img = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY)
+        # 100为padding部分，解决边界问题
+        image = np.ones((4096+200, 4096+200), dtype=np.uint8) * 255
+        image[100:(4096+100), 100:(4096+100)] = img
+        img = image
+    _, contours, hierarchy = cv2.findContours(img.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    # 以下部分将边缘轮廓进行处理，并且把分辨率变回1024*1024 ，并且要修改hierarchy
+    i = 0
+    while i < len(contours):
+        k = 0
+        for j in range(len(contours[i])):
+            x = contours[i][j][0][0]
+            y = contours[i][j][0][1]
+            tempContour = np.zeros((1, 1, 2))
+            if x < 50 or x > 4096+150 or y < 50 or y > 4096+150:
+                # 这些部分舍弃
+                pass
+            else:
+                # 将符合要求的轮廓拼在轮廓数组的最后，然后最后只保留这部分
+                if 50 <= x < 100:
+                    contours[i][j][0][0] = 100
+                if 4096+100 < x <= 4096 + 150:
+                    contours[i][j][0][0] = 4096+100
+                if 50 <= y < 100:
+                    contours[i][j][0][1] = 100
+                if 4096+100 < y <= 4096 + 150:
+                    contours[i][j][0][1] = 4096+100
+                contours[i][j][0][0] = (contours[i][j][0][0] - 100) / 4
+                contours[i][j][0][1] = (contours[i][j][0][1] - 100) / 4
+                tempContour[0, :, :] = contours[i][j][:, :]
+                contours[i] = np.concatenate((contours[i], tempContour) , axis=0)
+                k += 1
+        if k == 0:
+            del contours[i]
+        else:
+            contours[i] = contours[i][contours[i].shape[0]-k:contours[i].shape[0], :, :]
+            contours[i] = contours[i].astype(np.int32)
+            i += 1
     # create approximate contours to have reasonable submission size
     if epsilon != 0:
         approx_contours = simplify_contours(contours, epsilon)
@@ -193,16 +235,30 @@ def find_child_parent(hierarchy, approx_contours, min_area):
     cnt_children = defaultdict(list)
     child_contours = set()
     assert hierarchy.shape[0] == 1
-
+    # 遍历修改层次结构，去除最外层的轮廓(应该只有一个，因为扩展边界产生的)
+    temp = hierarchy[0]
+    for idx, (_, _, _, parent_idx) in enumerate(temp):
+        if parent_idx == -1:
+            temp = np.delete(temp, idx, 0)
+            break
+    # 遍历修改层次结构，去除最外层的轮廓
+    for idx, (_, _, _, parent_idx) in enumerate(temp):
+        if parent_idx == 0:
+            temp[idx][3] = -1
+    hierarchy = temp
     # http://docs.opencv.org/3.1.0/d9/d8b/tutorial_py_contours_hierarchy.html
-    for idx, (_, _, _, parent_idx) in enumerate(hierarchy[0]):
+    for idx, (_, _, _, parent_idx) in enumerate(hierarchy):
         if parent_idx != -1:
+            # 将子轮廓的编号存入set集合
             child_contours.add(idx)
+            # cnt_children词典中，key为上一级轮廓的编号，内容为子轮廓
             cnt_children[parent_idx].append(approx_contours[idx])
 
     # create actual polygons filtering by area (removes artifacts)
     all_polygons = []
+    # 遍历所有的轮廓，idx为轮廓的编号，cnt为轮廓的内容
     for idx, cnt in enumerate(approx_contours):
+        # 找到第一级的轮廓，也就是其他轮廓都是其子轮廓
         if idx not in child_contours and cv2.contourArea(cnt) >= min_area:
             assert cnt.shape[1] == 1
             holes = [c[:, 0, :] for c in cnt_children.get(idx, []) if cv2.contourArea(c) >= min_area]
@@ -230,12 +286,12 @@ def fix_invalid_polygons(all_polygons):
     return all_polygons
 
 
-def _get_xmax_ymin(image_id):
+def _get_xmax_ymin(image_id, gs=gs):
     xmax, ymin = gs[gs['ImageId'] == image_id].iloc[0, 1:].astype(float)
     return xmax, ymin
 
 
-def get_shape(image_id, band=3):
+def get_shape(image_id, band=3, shape=shapes):
     if band == 3:
         height = shapes.loc[shapes['image_id'] == image_id, 'height'].values[0]
         width = shapes.loc[shapes['image_id'] == image_id, 'width'].values[0]

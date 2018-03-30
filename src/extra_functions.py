@@ -286,7 +286,7 @@ def fix_invalid_polygons(all_polygons):
     return all_polygons
 
 
-def _get_xmax_ymin(image_id, gs=gs):
+def _get_xmax_ymin(image_id, gs):
     xmax, ymin = gs[gs['ImageId'] == image_id].iloc[0, 1:].astype(float)
     return xmax, ymin
 

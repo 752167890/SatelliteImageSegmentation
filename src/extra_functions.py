@@ -291,7 +291,7 @@ def _get_xmax_ymin(image_id, gs):
     return xmax, ymin
 
 
-def get_shape(image_id, band=3, shape=shapes):
+def get_shape(image_id, band, shapes):
     if band == 3:
         height = shapes.loc[shapes['image_id'] == image_id, 'height'].values[0]
         width = shapes.loc[shapes['image_id'] == image_id, 'width'].values[0]

@@ -23,7 +23,7 @@ data_path = '../data'
 
 three_band_path = os.path.join(data_path, 'three_band')
 
-testData_path = '../testData/'
+testData_path = '../data/'
 test_testData_path = os.path.join(testData_path, 'test')
 file_names = []
 widths_3 = []
@@ -31,8 +31,8 @@ heights_3 = []
 
 ImageURL = "https://geodata.nationaalgeoregister.nl/luchtfoto/rgb/wms?request=GetCapabilities"
 ContourURL = "https://geodata.nationaalgeoregister.nl/aan/wms?request=GetCapabilities"
-ImageOutDirectory = '../testData/image_tiles/'
-ContourOutDirectory = '../testData/contour_tiles/'
+ImageOutDirectory = '../data/image_tiles/'
+ContourOutDirectory = '../data/contour_tiles/'
 
 
 class DownloadThread(threading.Thread):
@@ -52,8 +52,8 @@ class DownloadThread(threading.Thread):
 
     def run(self):
         time.sleep(np.random.randint(0, 40))
-        ImageWms = WebMapService(self.ImageURL, version='1.1.1', timeout=100)
-        ContourWms = WebMapService(self.ContourURL, version='1.1.1', timeout=100)
+        ImageWms = WebMapService(self.ImageURL, version='1.1.1', timeout=200)
+        ContourWms = WebMapService(self.ContourURL, version='1.1.1', timeout=200)
         x_min = self.x_start
         y_min = self.y_start
         for ii in range(0, self.x_num):
@@ -123,7 +123,7 @@ def create_contour_csv(contourImagePath, outputPath):
     for file_name in tqdm(sorted(os.listdir(contourImagePath))):
         ContourImg = cv2.imread(contourImagePath + file_name)
         ContourImg = ContourImg[:, :, 0]
-        print(file_name)
+        # print(file_name)
         polygons = extra_functions.png2polygons_layer(ContourImg)
         result += [(file_name, shapely.wkt.dumps(polygons))]
     contoursCSV = pd.DataFrame(result, columns=['file_name', 'MultipolygonWKT'])
@@ -132,6 +132,6 @@ def create_contour_csv(contourImagePath, outputPath):
 
 
 if __name__ == '__main__':
-    download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
+    # download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
     create_contour_csv(ContourOutDirectory, testData_path)
 

@@ -7,7 +7,8 @@ import os
 import shapely
 import shapely.geometry
 import shapely.affinity
-from skimage import measure
+from shapely.validation import explain_validity
+from skimage import measure, data, color
 import h5py
 import pandas as pd
 import tifffile as tiff
@@ -144,64 +145,56 @@ def generate_new_mask(file_name, height, width, train):
     return mask
 
 
-def png2polygons_layer(img, epsilon=0.0, min_area=0.0):
+def png2polygons_layer(img):
     # first, find contours with cv2: it's much faster than shapely
     # 如果没有轮廓，则不需要处理
+    padding = 200
     if img.min() == img.max():
         img[: , :] = 0
     else:
         # 需要检测的为0，不需要的为255
         _, img = cv2.threshold(img, 150, 255, cv2.THRESH_BINARY)
         # 100为padding部分，解决边界问题
-        image = np.ones((4096+200, 4096+200), dtype=np.uint8) * 255
-        image[100:(4096+100), 100:(4096+100)] = img
+        image = np.ones((4096+2*padding, 4096+2*padding), dtype=np.uint8) * 255
+        image[padding:(4096+padding), padding:(4096+padding)] = img
         img = image
-    _, contours, hierarchy = cv2.findContours(img.astype(np.uint8), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-    # 以下部分将边缘轮廓进行处理，并且把分辨率变回1024*1024 ，并且要修改hierarchy
-    i = 0
-    while i < len(contours):
-        k = 0
-        for j in range(len(contours[i])):
-            x = contours[i][j][0][0]
-            y = contours[i][j][0][1]
-            tempContour = np.zeros((1, 1, 2))
-            if x < 50 or x > 4096+150 or y < 50 or y > 4096+150:
-                # 这些部分舍弃
-                pass
-            else:
-                # 将符合要求的轮廓拼在轮廓数组的最后，然后最后只保留这部分
-                if 50 <= x < 100:
-                    contours[i][j][0][0] = 100
-                if 4096+100 < x <= 4096 + 150:
-                    contours[i][j][0][0] = 4096+100
-                if 50 <= y < 100:
-                    contours[i][j][0][1] = 100
-                if 4096+100 < y <= 4096 + 150:
-                    contours[i][j][0][1] = 4096+100
-                contours[i][j][0][0] = (contours[i][j][0][0] - 100) / 4
-                contours[i][j][0][1] = (contours[i][j][0][1] - 100) / 4
-                tempContour[0, :, :] = contours[i][j][:, :]
-                contours[i] = np.concatenate((contours[i], tempContour) , axis=0)
-                k += 1
-        if k == 0:
-            del contours[i]
-        else:
-            contours[i] = contours[i][contours[i].shape[0]-k:contours[i].shape[0], :, :]
-            contours[i] = contours[i].astype(np.int32)
-            i += 1
-    # create approximate contours to have reasonable submission size
-    if epsilon != 0:
-        approx_contours = simplify_contours(contours, epsilon)
-    else:
-        approx_contours = contours
-
-    if not approx_contours:
+    contours = measure.find_contours(img, 0.8)  # 绘制轮廓
+    if not contours:
         return MultiPolygon()
-
-    all_polygons = find_child_parent(hierarchy, approx_contours, min_area)
-
+    else:
+        polygonList = []
+        for k in range(len(contours)):
+            i = 0
+            if len(contours[k]) < 6:
+                continue
+            pointList = []
+            while i < contours[k].shape[0]:
+                xy = contours[k][i]
+                if xy[0] < padding / 2 or xy[0] > 4096 + padding * 3 / 2 or xy[1] < padding / 2 or xy[1] > 4096 + padding * 3 / 2:
+                    contours[k] = np.delete(contours[k], i, 0)
+                elif padding / 2 <= xy[0] < padding:
+                        xy[0] = padding
+                elif 4096 + padding < xy[0] <= 4096 + padding * 3 / 2:
+                        xy[0] = 4096 + padding
+                elif padding / 2 <= xy[1] < padding:
+                        xy[1] = padding
+                elif 4096 + padding < xy[1] <= 4096 + padding * 3 / 2:
+                        xy[1] = 4096 + padding
+                xy[0] = (xy[0] - padding) / 4
+                xy[1] = (xy[1] - padding) / 4
+                temp = xy[0]
+                xy[0] = xy[1]
+                xy[1] = temp
+                pointList.append(xy)
+                i += 1
+            p = Polygon(pointList)
+            if not p.is_valid:
+                p = p.buffer(0)
+                assert p.is_valid, "Contour %r did not make valid polygon %s because %s" % (
+                p, p.wkt, explain_validity(p))
+            polygonList.append(p)
     # approximating polygons might have created invalid ones, fix them
-    all_polygons = MultiPolygon(all_polygons)
+    all_polygons = MultiPolygon(polygonList)
 
     all_polygons = fix_invalid_polygons(all_polygons)
 

@@ -53,7 +53,7 @@ def cache_train_16():
     # tqdm用于实现进度条
     for file_name in tqdm(sorted(train_wkt['file_name'].unique())):
         # 读取图片，3维的数据
-        imgs[i] = extra_functions.read_image_new_3(file_name)
+        # imgs[i] = extra_functions.read_image_new_3(file_name)
         # 利用给定的train_wkt.csv里面的边界，生成正确答案图像。10个channel对应10个类别的正确答案
         imgs_mask[i] = extra_functions.generate_new_mask(file_name, image_rows, image_cols, train_wkt)
         plt.imshow(imgs_mask[i][0, :, :])

@@ -20,11 +20,19 @@ from keras.backend import binary_crossentropy
 
 import datetime
 import os
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
 import random
 import threading
 
 from keras.models import model_from_json
+import tensorflow as tf
+import keras.backend.tensorflow_backend as KTF
+
+config = tf.ConfigProto()  
+config.gpu_options.allow_growth=True   #不全部占满显存, 按需分配
+sess = tf.Session(config=config)
+# 设置session
+KTF.set_session(sess)
 
 img_rows = 112
 img_cols = 112
@@ -292,7 +300,7 @@ if __name__ == '__main__':
     y_train = np.expand_dims(y_train, 1)
     print(y_train.shape)
     # 获取每个训练图片的id
-    train_ids = np.array(f['train_ids'])
+    train_ids = np.array(f['file_name'])
 
     batch_size = 128
     nb_epoch = 50
@@ -311,7 +319,7 @@ if __name__ == '__main__':
         batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
         nb_epoch=nb_epoch,
         verbose=1,
-        samples_per_epoch=batch_size*14,
+        samples_per_epoch=batch_size*400,
         callbacks=callbacks,
         nb_worker=16
         )

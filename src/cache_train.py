@@ -1,4 +1,3 @@
-# coding=utf-8
 # coding:utf-8
 """
 Script that caches train data for future training
@@ -13,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-data_path = '../testData'
+data_path = '../data'
 # 读取训练集的轮廓
 train_wkt = pd.read_csv(os.path.join(data_path, 'contours.csv'))
 # 筛选出crops的轮廓
@@ -41,7 +40,7 @@ def cache_train_16():
     image_cols = 1024
 
     # 创建一个HDF5文件, 其中create_dataset用于创建给定形状和数据类型的空dataset
-    f = h5py.File(os.path.join(data_path, 'train_new_3.h5'), 'w', compression='blosc:lz4', compression_opts=9)
+    f = h5py.File(os.path.join(data_path, 'train_3.h5'), 'w', compression='blosc:lz4', compression_opts=9)
 
     # imgs存放读取的数据，imgs_mask存放正确答案所生成的图像
     imgs = f.create_dataset('train', (num_train, num_channel, image_rows, image_cols), dtype=np.float16)
@@ -52,12 +51,11 @@ def cache_train_16():
     i = 0
     # tqdm用于实现进度条
     for file_name in tqdm(sorted(train_wkt['file_name'].unique())):
+        # print file_name
         # 读取图片，3维的数据
-        # imgs[i] = extra_functions.read_image_new_3(file_name)
+        imgs[i] = extra_functions.read_image_new_3(file_name)
         # 利用给定的train_wkt.csv里面的边界，生成正确答案图像。10个channel对应10个类别的正确答案
         imgs_mask[i] = extra_functions.generate_new_mask(file_name, image_rows, image_cols, train_wkt)
-        plt.imshow(imgs_mask[i][0, :, :])
-        plt.savefig("./test.png")
         ids += [file_name]
         i += 1
     # 好像是为了兼容py3,好像是hdf5的问题。

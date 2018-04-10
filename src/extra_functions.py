@@ -346,8 +346,10 @@ def read_image_3(image_id):
 
 # 读取自己抓取的数据
 def read_image_new_3(file_name):
-    img_3 = np.transpose(tiff.imread("../testData/image_tiles/{}".format(file_name)), (2, 0, 1)) / 2047.0
-    return img_3.astype(np.float16)
+	file_name=file_name+".tif"
+	img_3=np.transpose(cv2.imread("../data/image_tiles/{}".format(file_name)), (2, 0, 1)) / 2047.0
+	# img_3 = np.transpose(tiff.imread("../data/image_tiles/{}".format(file_name)), (2, 0, 1)) / 2047.0
+	return img_3.astype(np.float16)
 
 
 def make_prediction_cropped(model, X_train, initial_size=(572, 572), final_size=(388, 388), num_channels=19, num_masks=10):

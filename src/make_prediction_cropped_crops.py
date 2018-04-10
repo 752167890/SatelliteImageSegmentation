@@ -2,6 +2,7 @@
 from __future__ import division
 
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
 from tqdm import tqdm
 import pandas as pd
 import extra_functions
@@ -11,7 +12,15 @@ from numba import jit
 
 from keras.models import model_from_json
 import numpy as np
-
+from keras.models import model_from_json
+import tensorflow as tf
+import keras.backend.tensorflow_backend as KTF
+import cv2
+config = tf.ConfigProto()  
+config.gpu_options.allow_growth=True   #不全部占满显存, 按需分配
+sess = tf.Session(config=config)
+# 设置session
+KTF.set_session(sess)
 
 def read_model(cross=''):
     json_name = 'architecture_128_50_crops_3_' + cross + '.json'
@@ -23,21 +32,16 @@ def read_model(cross=''):
 # 读取模型参数
 model = read_model()
 
-sample = pd.read_csv('../data/sample_submission.csv')
+# sample = pd.read_csv('../data/sample_submission.csv')
 
 data_path = '../data'
 num_channels = 3
 num_mask_channels = 1
 threashold = 0.3
 
-three_band_path = os.path.join(data_path, 'three_band')
 
-train_wkt = pd.read_csv(os.path.join(data_path, 'train_wkt_v4.csv'))
-gs = pd.read_csv(os.path.join(data_path, 'grid_sizes.csv'), names=['ImageId', 'Xmax', 'Ymin'], skiprows=1)
-shapes = pd.read_csv(os.path.join(data_path, '3_shapes.csv'))
-
-# test_ids = shapes.loc[~shapes['image_id'].isin(train_wkt['ImageId'].unique()), 'image_id']
-test_ids=[1,2,3,4,5,6,7,8,9,10,11]
+# 读取训练集的轮廓
+train_wkt = pd.read_csv(os.path.join(data_path, 'contours.csv'))
 
 result = []
 
@@ -56,17 +60,15 @@ def mask2poly(predicted_mask, threashold, x_scaler, y_scaler):
     return shapely.wkt.dumps(polygons)
 
 
-for image_id in tqdm(test_ids):
+for file_name in tqdm(sorted(train_wkt['file_name'].unique())):
     # 读取图片
-    # image = extra_functions.read_image_3(image_id)
-    # 读取自定义训练图片
-    image = np.transpose(plt.imread("../testData/{}.jpg".format(image_id)), (2, 0, 1)) / 2047.0
-    image=image.astype(np.float16)
-
+    image = extra_functions.read_image_new_3(file_name)
+    # # 读取自定义训练图片
+    # image = np.transpose(plt.imread("../data/image_tiles{}.tif".format(image_id)), (2, 0, 1)) / 2047.0
+    # image=image.astype(np.float16)
     H = image.shape[1]
     W = image.shape[2]
-    # # 获取grid_size的坐标
-    # x_max, y_min = extra_functions._get_xmax_ymin(image_id)
+
     # 预测图片
     predicted_mask = extra_functions.make_prediction_cropped(model, image, initial_size=(112, 112),
                                                              final_size=(112-32, 112-32),
@@ -94,6 +96,10 @@ for image_id in tqdm(test_ids):
                         flip_axis(predicted_mask_v, 1) *
                         flip_axis(predicted_mask_h, 2) *
                         predicted_mask_s.swapaxes(1, 2), 0.25)
+    new_mask=new_mask*2047
+    new_maks=new_mask.astype(np.int32)
+    new_mask=np.transpose(new_mask,(1,2,0))
+    cv2.imwrite("../data/image_train/%s.jpg" % file_name, new_mask)
     # # 得到kaggle所要求的grid坐标
     # x_scaler, y_scaler = extra_functions.get_scalers(H, W, x_max, y_min)
 

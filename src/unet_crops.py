@@ -30,6 +30,7 @@ import keras.backend.tensorflow_backend as KTF
 
 config = tf.ConfigProto()  
 config.gpu_options.allow_growth=True   #不全部占满显存, 按需分配
+# config.gpu_options.per_process_gpu_memory_fraction = 0.6
 sess = tf.Session(config=config)
 # 设置session
 KTF.set_session(sess)

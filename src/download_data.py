@@ -8,17 +8,20 @@ from owslib.wms import WebMapService
 import extra_functions
 import os
 from tqdm import tqdm
+from tqdm import trange
 import pandas as pd
 import cv2
 import numpy as np
 import shapely
 import threading
+
 try:  # python3
     import queue as Queue
 except ImportError:  # python2
     import Queue
 import time
 import tifffile as tiff
+
 data_path = '../data'
 
 three_band_path = os.path.join(data_path, 'three_band')
@@ -62,17 +65,22 @@ class DownloadThread(threading.Thread):
                 ll_y_ = y_min + jj * self.y_stride
                 bbox = (ll_x_, ll_y_, ll_x_ + self.x_stride, ll_y_ + self.y_stride)
                 try:
-                    img = ImageWms.getmap(layers=['Actueel_ortho25'], srs='EPSG:4326', bbox=bbox, size=(1024, 1024),
-                                          format='image/GeoTIFF', transparent=True)
-                except BaseException:
-                    self.queue.put(0)
+                    img_3 = tiff.imread("%s%f_%f_%f_%f.tif" % (ImageOutDirectory, bbox[0], bbox[1], bbox[2], bbox[3]))
+                    self.queue.put(1)
                     continue
-                try:
-                    ContourImg = ContourWms.getmap(layers=['aan'], srs='EPSG:4326', bbox=bbox, size=(4096, 4096),
-                                 format='image/png', transparent=True)
                 except BaseException:
-                    self.queue.put(0)
-                    continue
+                    try:
+                        img = ImageWms.getmap(layers=['Actueel_ortho25'], srs='EPSG:4326', bbox=bbox, size=(1024, 1024),
+                                              format='image/GeoTIFF', transparent=True)
+                    except:
+                        self.queue.put(0)
+                        continue
+                    try:
+                        ContourImg = ContourWms.getmap(layers=['aan'], srs='EPSG:4326', bbox=bbox, size=(4096, 4096),
+                                                       format='image/png', transparent=True)
+                    except:
+                        self.queue.put(0)
+                        continue
                 filename = "{}_{}_{}_{}.tif".format(bbox[0], bbox[1], bbox[2], bbox[3])
                 filename2 = "{}_{}_{}_{}.png".format(bbox[0], bbox[1], bbox[2], bbox[3])
                 with open(self.ImageOutDirectory + filename, 'wb') as out:
@@ -96,12 +104,12 @@ def download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirecto
     parameter['x_stride'] = 0.005
     parameter['y_stride'] = 0.005
     no_tiles_x = 100
-    no_tiles_y = 10
+    no_tiles_y = 100
     total_no_tiles = no_tiles_x * no_tiles_y
     # 确保可以整除
     x_block = no_tiles_x / thead_num
     for ii in range(0, thead_num):
-        parameter['x_start'] = x_min + ii*x_block*parameter['x_stride']
+        parameter['x_start'] = x_min + ii * x_block * parameter['x_stride']
         parameter['y_start'] = y_min
         parameter['x_num'] = int(x_block)
         parameter['y_num'] = no_tiles_y
@@ -112,7 +120,7 @@ def download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirecto
     k = 0
     while number < total_no_tiles:
         i = q.get()
-        if i==1:
+        if i == 1:
             pbar.update(i)
         else:
             k += 1
@@ -120,59 +128,62 @@ def download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirecto
         number += 1
     pbar.close()
     print("预备下载：%d" % total_no_tiles)
-    print("实际下载：%d" % (total_no_tiles-k))
-    print("下面开始生成contour.csv")
+    print("实际下载：%d" % (total_no_tiles - k))
+    print("下面开始检查图片")
 
 
 # 针对有些数据没有现在完全，将其检查出来并重新下载。
-def downloadcheck(ImageOutDirectory, ContourOutDirectory):
+def downloadcheck(x_min, y_min, x_num, y_num, x_stride, y_stride, ImageOutDirectory, ContourOutDirectory):
     num = 0
-    for file_name in tqdm(sorted(os.listdir(ContourOutDirectory))):
-        try:
-            img_3 = tiff.imread("%s%s.tif" %(ImageOutDirectory,file_name[0:-4]))
-            if img_3.size != 1024*1024*3:
-                bbox = file_name[0:-4].split("_")
+    for ii in trange(x_num):
+        for jj in range(y_num):
+            ll_x_ = x_min + ii * x_stride
+            ll_y_ = y_min + jj * y_stride
+            bbox = (ll_x_, ll_y_, ll_x_ + x_stride, ll_y_ + y_stride)
+            try:
+                img_3 = tiff.imread("%s%f_%f_%f_%f.tif" % (ImageOutDirectory, bbox[0], bbox[1], bbox[2], bbox[3]))
+            except BaseException:
+                print("%s%f_%f_%f_%f.tif" % (ImageOutDirectory, bbox[0], bbox[1], bbox[2], bbox[3]))
                 singleDownloadmap(bbox, ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
-                num+=1
-        except BaseException:
-            bbox = file_name[0:-4].split("_")
-            for i in range(len(bbox)):
-            	bbox[i]=float(bbox[i])
-            singleDownloadmap(bbox, ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
-            num+=1
+                num += 1
     print("已经修复%d张缺失或下载错误的tif卫星图" % num)
+    print("下面开始生成csv文件")
 
 
-def singleDownloadmap(bbox,ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory):
-    ImageWms = WebMapService(ImageURL, version='1.1.1', timeout=200)
-    ContourWms = WebMapService(ContourURL, version='1.1.1', timeout=200)
+def singleDownloadmap(bbox, ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory):
+    ImageWms = WebMapService(ImageURL, version='1.1.1', timeout=2000)
+    ContourWms = WebMapService(ContourURL, version='1.1.1', timeout=2000)
     img = ImageWms.getmap(layers=['Actueel_ortho25'], srs='EPSG:4326', bbox=bbox, size=(1024, 1024),
-                                      format='image/GeoTIFF', transparent=True)
+                          format='image/GeoTIFF', transparent=True)
     ContourImg = ContourWms.getmap(layers=['aan'], srs='EPSG:4326', bbox=bbox, size=(4096, 4096),
-                             format='image/png', transparent=True)
+                                   format='image/png', transparent=True)
     filename = "{}_{}_{}_{}.tif".format(bbox[0], bbox[1], bbox[2], bbox[3])
     filename2 = "{}_{}_{}_{}.png".format(bbox[0], bbox[1], bbox[2], bbox[3])
     with open(ImageOutDirectory + filename, 'wb') as out:
         out.write(img.read())
     with open(ContourOutDirectory + filename2, 'wb') as out1:
         out1.write(ContourImg.read())
-                
+
 
 def create_contour_csv(contourImagePath, outputPath):
     result = []
+    num = 0
     for file_name in tqdm(sorted(os.listdir(contourImagePath))):
         ContourImg = cv2.imread(contourImagePath + file_name)
         # print(file_name)
         ContourImg = ContourImg[:, :, 0]
         polygons = extra_functions.png2polygons_layer(ContourImg)
         result += [(file_name[0:-4], shapely.wkt.dumps(polygons))]
+        num += 1
+        if num == 0.8 * len(sorted(os.listdir(contourImagePath))):
+            break
     contoursCSV = pd.DataFrame(result, columns=['file_name', 'MultipolygonWKT'])
     contoursCSV.to_csv(os.path.join(outputPath, 'contours.csv'), index=False)
     print("csv文件生成成功！")
 
 
 if __name__ == '__main__':
-    #download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
-    downloadcheck(ImageOutDirectory, ContourOutDirectory)
-    #create_contour_csv(ContourOutDirectory, testData_path)
+    download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
+    downloadcheck(4.536343, 52.289726, 100, 100, 0.005, 0.005, ImageOutDirectory, ContourOutDirectory)
+    create_contour_csv(ContourOutDirectory, testData_path)
 

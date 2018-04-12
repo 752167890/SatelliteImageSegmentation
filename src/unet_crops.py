@@ -56,6 +56,7 @@ def jaccard_coef(y_true, y_pred):
 def jaccard_coef_int(y_true, y_pred):
     # K.clip 将输出值y_pred压缩到[0,1]之间，小于min的让它等于min，大于max的元素的值等于max。
     # K.round 将输入值，转化为最接近的整数，比如：0.9 =》1 ，2.3 =》 2
+    # 将y_pred_pos二值化
     y_pred_pos = K.round(K.clip(y_pred, 0, 1))
     '''
     This means that the index that will be returned by argmax will be taken from the last axis.
@@ -71,9 +72,12 @@ def jaccard_coef_int(y_true, y_pred):
     Axis = -3 = 19 elements
     Axis = -4 = 19 elements
     '''
+    # 因为真实的mask与pred的mask都是二值图，所以，如果对应的地方相同的话，乘积结果仍然相同
+    # 故intersection是预测的结果与真实结果重合的部分
     intersection = K.sum(y_true * y_pred_pos, axis=[0, -1, -2])
+    # 故_sum是预测的结果与真实结果求并集的部分
     sum_ = K.sum(y_true + y_pred_pos, axis=[0, -1, -2])
-
+    # 杰卡德距离，Smooth是平滑参数
     jac = (intersection + smooth) / (sum_ - intersection + smooth)
 
     return K.mean(jac)
@@ -303,7 +307,7 @@ if __name__ == '__main__':
     # 获取每个训练图片的id
     train_ids = np.array(f['file_name'])
 
-    batch_size = 128
+    batch_size = 256
     nb_epoch = 50
 
     history = History()

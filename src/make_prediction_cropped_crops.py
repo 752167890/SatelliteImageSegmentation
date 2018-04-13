@@ -4,7 +4,7 @@ import matplotlib
 # Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,3"
 from tqdm import tqdm
 import pandas as pd
 import extra_functions
@@ -75,14 +75,19 @@ def jaccard_coef(y_true, y_pred):
 num =0
 for file_name in tqdm(sorted(os.listdir(ImageOutDirectory))):
     if file_name[0:-4] not in train_wkt['file_name']:
+    	# print file_name
         # 读取图片
         image = extra_functions.read_image_new_3(file_name[0:-4])
-        img_3 = image*2047.0
+        # img_3 = image*2047.0
         # 脏数据不做预测
         if (img_3.max() - img_3.min()) < 30:
             continue
+        # print(img_3.max())
+        # print(img_3.min())
         # # 读取自定义训练图片
         # image = np.transpose(plt.imread("../data/image_tiles{}.tif".format(image_id)), (2, 0, 1)) / 2047.0
+        # image=image.astype(np.float16)
+        # image=np.transpose(cv2.imread("../data/image_file_test/{}".format(file_name)), (2, 0, 1)) / 2047.0
         # image=image.astype(np.float16)
         H = image.shape[1]
         W = image.shape[2]

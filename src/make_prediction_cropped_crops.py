@@ -1,6 +1,8 @@
 # coding:utf-8
 from __future__ import division
-
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
 from tqdm import tqdm
@@ -9,7 +11,7 @@ import extra_functions
 import shapely
 import matplotlib.pyplot as plt
 from numba import jit
-
+from keras import backend as K
 from keras.models import model_from_json
 import numpy as np
 from keras.models import model_from_json
@@ -44,6 +46,7 @@ threashold = 0.3
 # 读取训练集的轮廓
 train_wkt = pd.read_csv(os.path.join(data_path, 'contours.csv'))
 ImageOutDirectory = '../data/image_tiles/'
+ContourOutDirectory = '../data/contour_tiles/'
 result = []
 
 
@@ -61,10 +64,23 @@ def mask2poly(predicted_mask, threashold, x_scaler, y_scaler):
     return shapely.wkt.dumps(polygons)
 
 
+def jaccard_coef(y_true, y_pred):
+    smooth=1e-12
+    intersection = np.sum(y_true * y_pred)
+    sum = np.sum(y_true + y_pred)
+    jac = (intersection + smooth) / (sum - intersection + smooth)
+
+    return np.mean(jac)
+
+num =0
 for file_name in tqdm(sorted(os.listdir(ImageOutDirectory))):
     if file_name[0:-4] not in train_wkt['file_name']:
         # 读取图片
-        image = extra_functions.read_image_new_3(file_name)
+        image = extra_functions.read_image_new_3(file_name[0:-4])
+        img_3 = image*2047.0
+        # 脏数据不做预测
+        if (img_3.max() - img_3.min()) < 30:
+            continue
         # # 读取自定义训练图片
         # image = np.transpose(plt.imread("../data/image_tiles{}.tif".format(image_id)), (2, 0, 1)) / 2047.0
         # image=image.astype(np.float16)
@@ -98,10 +114,29 @@ for file_name in tqdm(sorted(os.listdir(ImageOutDirectory))):
                             flip_axis(predicted_mask_v, 1) *
                             flip_axis(predicted_mask_h, 2) *
                             predicted_mask_s.swapaxes(1, 2), 0.25)
-        new_mask=new_mask*2047
-        new_maks=new_mask.astype(np.int32)
-        new_mask=np.transpose(new_mask,(1,2,0))
-        cv2.imwrite("../data/image_train/%s.jpg" % file_name, new_mask)
+        ContourImg = cv2.imread(ContourOutDirectory + file_name[0:-4]+".png")
+        # print(file_name)
+        ContourImg = ContourImg[:, :, 0]
+        polygons = extra_functions.png2polygons_layer(ContourImg)
+        origin_mask = extra_functions.polygons2new_mask_layer(1024, 1024, polygons)
+        print(jaccard_coef(origin_mask, new_mask[0,:,:]))
+        figure, ax = plt.subplots(1, 2)
+        ax0, ax1 = ax.ravel()
+        # np.set_printoptions(suppress=True)
+        # 使得坐标轴的比例相同
+        ax1.set_aspect(1)
+        ax0.imshow(origin_mask, cmap='gray')
+        ax1.imshow(new_mask[0,:,:],cmap='gray')
+        # 展示
+        plt.plot()
+        plt.savefig("../test-pic/%s.png" %(file_name[0:-4]))
+        num+=1
+        if num == 100:
+            break
+        # new_mask=new_mask*2047
+        # new_maks=new_mask.astype(np.int32)
+        # new_mask=np.transpose(new_mask,(1,2,0))
+        # cv2.imwrite("../data/image_train/%s.jpg" % file_name, new_mask)
         # # 得到kaggle所要求的grid坐标
         # x_scaler, y_scaler = extra_functions.get_scalers(H, W, x_max, y_min)
 

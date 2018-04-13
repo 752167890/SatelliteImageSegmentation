@@ -307,7 +307,7 @@ if __name__ == '__main__':
     # 获取每个训练图片的id
     train_ids = np.array(f['file_name'])
 
-    batch_size = 256
+    batch_size = 140
     nb_epoch = 50
 
     history = History()
@@ -342,6 +342,6 @@ if __name__ == '__main__':
     #     callbacks=callbacks,
     # )
     # Save a model to a HDF5 file.
-    save_model(model, "{batch}_{epoch}_{suffix}".format(batch=batch_size, epoch=nb_epoch, suffix=suffix))
-    save_history(history, suffix)
+    # save_model(model, "{batch}_{epoch}_{suffix}".format(batch=batch_size, epoch=nb_epoch, suffix=suffix))
+    # save_history(history, suffix)
     f.close()

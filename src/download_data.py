@@ -219,7 +219,7 @@ def create_contour_csv(ContourOutDirectory, outputPath):
 
 
 if __name__ == '__main__':
-    #download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
-    #downloadcheck(4.525307,51.689726,100,100,0.005,0.005,ImageOutDirectory, ContourOutDirectory)
+    # download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
+    # downloadcheck(4.525307,51.689726,100,100,0.005,0.005,ImageOutDirectory, ContourOutDirectory)
     create_contour_csv(ContourOutDirectory, testData_path)
 

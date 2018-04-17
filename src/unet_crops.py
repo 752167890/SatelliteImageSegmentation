@@ -20,7 +20,8 @@ from keras.backend import binary_crossentropy
 
 import datetime
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import random
 import threading
 
@@ -28,8 +29,8 @@ from keras.models import model_from_json
 import tensorflow as tf
 import keras.backend.tensorflow_backend as KTF
 
-config = tf.ConfigProto()  
-config.gpu_options.allow_growth=True   #不全部占满显存, 按需分配
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True  # 不全部占满显存, 按需分配
 # config.gpu_options.per_process_gpu_memory_fraction = 0.6
 sess = tf.Session(config=config)
 # 设置session
@@ -65,7 +66,7 @@ def jaccard_coef_int(y_true, y_pred):
     Axis = 1 - 19 elements
     Axis = 2 - 5 elements
     Axis = 3 - 80 elements
-    
+
     Now, negative numbers work exactly like in python lists, in numpy arrays, etc. Negative numbers represent the inverse order:
     Axis = -1 = 80 elements
     Axis = -2 = 5 elements
@@ -200,7 +201,8 @@ def form_batch(X, y, batch_size):
         random_image = random.randint(0, X.shape[0] - 1)
 
         y_batch[i] = y[random_image, :, random_height: random_height + img_rows, random_width: random_width + img_cols]
-        X_batch[i] = np.array(X[random_image, :, random_height: random_height + img_rows, random_width: random_width + img_cols])
+        X_batch[i] = np.array(
+            X[random_image, :, random_height: random_height + img_rows, random_width: random_width + img_cols])
     return X_batch, y_batch
 
 
@@ -290,7 +292,8 @@ if __name__ == '__main__':
 
     print('[{}] Creating and compiling model...'.format(str(datetime.datetime.now())))
 
-    model = get_unet0()
+    # model = get_unet0()
+    model = read_model("128_5_crops_4_")
 
     print('[{}] Reading train...'.format(str(datetime.datetime.now())))
     f = h5py.File(os.path.join(data_path, 'train_3.h5'), 'r')
@@ -306,16 +309,15 @@ if __name__ == '__main__':
     print(y_train.shape)
     # 获取每个训练图片的id
     train_ids = np.array(f['file_name'])
-
-    batch_size = 140
-    nb_epoch = 50
+    batch_size = 128
+    nb_epoch = 15
 
     history = History()
     callbacks = [
         history,
     ]
 
-    suffix = 'crops_3_'
+    suffix = 'crops_4_'
     # https://keras-cn.readthedocs.io/en/latest/other/metrics/
     # metrics:性能评估函数类似与目标函数, 只不过该性能的评估结果讲不会用于训练.
     model.compile(optimizer=Nadam(lr=1e-3), loss=jaccard_coef_loss, metrics=['binary_crossentropy', jaccard_coef_int])
@@ -324,10 +326,10 @@ if __name__ == '__main__':
         batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
         nb_epoch=nb_epoch,
         verbose=1,
-        samples_per_epoch=batch_size*400,
+        samples_per_epoch=batch_size * 400,
         callbacks=callbacks,
         nb_worker=16
-        )
+    )
 
     save_model(model, "{batch}_{epoch}_{suffix}".format(batch=batch_size, epoch=nb_epoch, suffix=suffix))
     save_history(history, suffix)

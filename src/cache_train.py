@@ -49,6 +49,7 @@ def cache_train_16():
     ids = []
 
     i = 0
+    num = 0
     # tqdm用于实现进度条
     for file_name in tqdm(sorted(train_wkt['file_name'].unique())):
         # print file_name
@@ -63,7 +64,6 @@ def cache_train_16():
     f['file_name'] = np.array(ids).astype('|S9')
 
     f.close()
-
 
 if __name__ == '__main__':
     cache_train_16()

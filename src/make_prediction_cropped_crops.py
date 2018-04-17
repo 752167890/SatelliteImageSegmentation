@@ -4,7 +4,7 @@ import matplotlib
 # Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 from tqdm import tqdm
 import pandas as pd
 import extra_functions
@@ -26,8 +26,8 @@ KTF.set_session(sess)
 
 
 def read_model(cross=''):
-    json_name = 'architecture_128_50_crops_3_' + cross + '.json'
-    weight_name = 'model_weights_128_50_crops_3_' + cross + '.h5'
+    json_name = 'architecture_128_5_crops_4_' + cross + '.json'
+    weight_name = 'model_weights_128_5_crops_4_' + cross + '.h5'
     model = model_from_json(open(os.path.join('../src/cache', json_name)).read())
     model.load_weights(os.path.join('../src/cache', weight_name))
     return model
@@ -78,7 +78,7 @@ for file_name in tqdm(sorted(os.listdir(ImageOutDirectory))):
     	# print file_name
         # 读取图片
         image = extra_functions.read_image_new_3(file_name[0:-4])
-        # img_3 = image*2047.0
+        img_3 = image*2047.0
         # 脏数据不做预测
         if (img_3.max() - img_3.min()) < 30:
             continue
@@ -136,7 +136,7 @@ for file_name in tqdm(sorted(os.listdir(ImageOutDirectory))):
         plt.plot()
         plt.savefig("../test-pic/%s.png" %(file_name[0:-4]))
         num+=1
-        if num == 100:
+        if num == 10:
             break
         # new_mask=new_mask*2047
         # new_maks=new_mask.astype(np.int32)

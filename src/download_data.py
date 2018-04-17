@@ -54,7 +54,7 @@ class DownloadThread(threading.Thread):
         self.y_start = parameter['y_start']
 
     def run(self):
-        # time.sleep(np.random.randint(0, 40))
+        time.sleep(np.random.randint(0, 40))
         ImageWms = WebMapService(self.ImageURL, version='1.1.1', timeout=200)
         ContourWms = WebMapService(self.ContourURL, version='1.1.1', timeout=200)
         x_min = self.x_start
@@ -66,7 +66,7 @@ class DownloadThread(threading.Thread):
                 bbox = (ll_x_, ll_y_, ll_x_ + self.x_stride, ll_y_ + self.y_stride)
                 try:
                     img_3 = tiff.imread("%s%f_%f_%f_%f.tif" % (ImageOutDirectory, bbox[0], bbox[1], bbox[2], bbox[3]))
-                    if img_3[0, :, :].min() == img_3[0, :, :].max():
+                    if (img_3.max() - img_3.min()) < 30:
                         try:
                             img = ImageWms.getmap(layers=['Actueel_ortho25'], srs='EPSG:4326', bbox=bbox,
                                                   size=(1024, 1024), format='image/GeoTIFF', transparent=True)
@@ -180,18 +180,30 @@ def singleDownloadmap(bbox, ImageURL, ContourURL, ImageOutDirectory, ContourOutD
 
 def create_contour_csv(ContourOutDirectory, outputPath):
     result = []
+    numb = 0
     num = 0
-    coef = 0.8
+    # 黑白轮廓图所占比例
+    blankcoef = 0.1
+    coef = 0.1
     k = 0
     pbar = tqdm(total=coef * len(sorted(os.listdir(ContourOutDirectory))))
     for file_name in tqdm(sorted(os.listdir(ContourOutDirectory))):
-        img_3 = extra_functions.read_image_new_3(file_name[0:-4]) * 2047
-        if (img_3.max() - img_3.min()) < 30:
-            k += 1
+        try:
+            img_3 = extra_functions.read_image_new_3(file_name[0:-4]) * 2047
+            if (img_3.max() - img_3.min()) < 30:
+                k += 1
+                continue
+        except:
+            k+=1
             continue
         ContourImg = cv2.imread(ContourOutDirectory + file_name)
         # print(file_name)
         ContourImg = ContourImg[:, :, 0]
+        if ContourImg.min()==ContourImg.max():
+            if numb== blankcoef*coef*len(sorted(os.listdir(ContourOutDirectory))):
+                continue
+            else:
+                numb+=1
         polygons = extra_functions.png2polygons_layer(ContourImg)
         result += [(file_name[0:-4], shapely.wkt.dumps(polygons))]
         num += 1
@@ -202,6 +214,7 @@ def create_contour_csv(ContourOutDirectory, outputPath):
     contoursCSV = pd.DataFrame(result, columns=['file_name', 'MultipolygonWKT'])
     contoursCSV.to_csv(os.path.join(outputPath, 'contours.csv'), index=False)
     print("出现%d张脏数据" % k)
+    print("存入%d张空白轮廓图和%d张农田轮廓图，共%d张轮廓图" % (numb, num-numb, num))
     print("csv文件生成成功！")
 
 

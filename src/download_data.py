@@ -186,7 +186,7 @@ def create_contour_csv(ContourOutDirectory, outputPath):
     blankcoef = 0.1
     coef = 0.1
     k = 0
-    pbar = tqdm(total=coef * len(sorted(os.listdir(ContourOutDirectory))))
+    pbar = tqdm(total=int(coef * len(sorted(os.listdir(ContourOutDirectory)))))
     for file_name in tqdm(sorted(os.listdir(ContourOutDirectory))):
         try:
             img_3 = extra_functions.read_image_new_3(file_name[0:-4]) * 2047
@@ -200,7 +200,7 @@ def create_contour_csv(ContourOutDirectory, outputPath):
         # print(file_name)
         ContourImg = ContourImg[:, :, 0]
         if ContourImg.min()==ContourImg.max():
-            if numb== blankcoef*coef*len(sorted(os.listdir(ContourOutDirectory))):
+            if numb== int(blankcoef*coef*len(sorted(os.listdir(ContourOutDirectory)))):
                 continue
             else:
                 numb+=1
@@ -208,7 +208,7 @@ def create_contour_csv(ContourOutDirectory, outputPath):
         result += [(file_name[0:-4], shapely.wkt.dumps(polygons))]
         num += 1
         pbar.update(1)
-        if num == coef * len(sorted(os.listdir(ContourOutDirectory))):
+        if num == int(coef * len(sorted(os.listdir(ContourOutDirectory)))):
             break
     pbar.close()
     contoursCSV = pd.DataFrame(result, columns=['file_name', 'MultipolygonWKT'])
@@ -219,7 +219,7 @@ def create_contour_csv(ContourOutDirectory, outputPath):
 
 
 if __name__ == '__main__':
-    download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
-    downloadcheck(4.525307,51.689726,100,100,0.005,0.005,ImageOutDirectory, ContourOutDirectory)
+    #download_map_data(ImageURL, ContourURL, ImageOutDirectory, ContourOutDirectory)
+    #downloadcheck(4.525307,51.689726,100,100,0.005,0.005,ImageOutDirectory, ContourOutDirectory)
     create_contour_csv(ContourOutDirectory, testData_path)
 

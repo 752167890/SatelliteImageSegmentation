@@ -21,7 +21,7 @@ from keras.backend import binary_crossentropy
 import datetime
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 import random
 import threading
 
@@ -36,8 +36,8 @@ sess = tf.Session(config=config)
 # 设置session
 KTF.set_session(sess)
 
-img_rows = 112
-img_cols = 112
+img_rows = 128
+img_cols = 128
 
 smooth = 1e-12
 
@@ -292,8 +292,8 @@ if __name__ == '__main__':
 
     print('[{}] Creating and compiling model...'.format(str(datetime.datetime.now())))
 
-    # model = get_unet0()
-    model = read_model("128_5_crops_4_")
+    model = get_unet0()
+    # model = read_model("128_5_crops_4_")
 
     print('[{}] Reading train...'.format(str(datetime.datetime.now())))
     f = h5py.File(os.path.join(data_path, 'train_3.h5'), 'r')
@@ -310,23 +310,23 @@ if __name__ == '__main__':
     # 获取每个训练图片的id
     train_ids = np.array(f['file_name'])
     batch_size = 128
-    nb_epoch = 15
+    nb_epoch = 50
 
     history = History()
     callbacks = [
         history,
     ]
 
-    suffix = 'crops_4_'
+    suffix = 'crops_5_'
     # https://keras-cn.readthedocs.io/en/latest/other/metrics/
     # metrics:性能评估函数类似与目标函数, 只不过该性能的评估结果讲不会用于训练.
     model.compile(optimizer=Nadam(lr=1e-3), loss=jaccard_coef_loss, metrics=['binary_crossentropy', jaccard_coef_int])
     # verbose：日志显示，0为不在标准输出流输出日志信息，1为输出进度条记录，2为每个epoch输出一行记录
     model.fit_generator(
-        batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=True),
+        batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=False),
         nb_epoch=nb_epoch,
         verbose=1,
-        samples_per_epoch=batch_size * 400,
+        samples_per_epoch=batch_size * 800,
         callbacks=callbacks,
         nb_worker=16
     )

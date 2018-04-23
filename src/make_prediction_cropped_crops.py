@@ -4,7 +4,7 @@ import matplotlib
 # Force matplotlib to not use any Xwindows backend.
 matplotlib.use('Agg')
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 from tqdm import tqdm
 import pandas as pd
 import extra_functions
@@ -26,8 +26,8 @@ KTF.set_session(sess)
 
 
 def read_model(cross=''):
-    json_name = 'architecture_128_5_crops_4_' + cross + '.json'
-    weight_name = 'model_weights_128_5_crops_4_' + cross + '.h5'
+    json_name = 'architecture_128_50_crops_4_' + cross + '.json'
+    weight_name = 'model_weights_128_50_crops_4_' + cross + '.h5'
     model = model_from_json(open(os.path.join('../src/cache', json_name)).read())
     model.load_weights(os.path.join('../src/cache', weight_name))
     return model
@@ -35,13 +35,12 @@ def read_model(cross=''):
 # 读取模型参数
 model = read_model()
 
-# sample = pd.read_csv('../data/sample_submission.csv')
-
 data_path = '../data'
 num_channels = 3
 num_mask_channels = 1
 threashold = 0.3
-
+image_row=128
+image_col=128
 
 # 读取训练集的轮廓
 train_wkt = pd.read_csv(os.path.join(data_path, 'contours.csv'))
@@ -75,7 +74,7 @@ def jaccard_coef(y_true, y_pred):
 num =0
 for file_name in tqdm(sorted(os.listdir(ImageOutDirectory))):
     if file_name[0:-4] not in train_wkt['file_name']:
-    	# print file_name
+        # print file_name
         # 读取图片
         image = extra_functions.read_image_new_3(file_name[0:-4])
         img_3 = image*2047.0
@@ -93,65 +92,58 @@ for file_name in tqdm(sorted(os.listdir(ImageOutDirectory))):
         W = image.shape[2]
 
         # 预测图片
-        predicted_mask = extra_functions.make_prediction_cropped(model, image, initial_size=(112, 112),
-                                                                 final_size=(112-32, 112-32),
+        predicted_mask = extra_functions.make_prediction_cropped(model, image, initial_size=(image_row, image_col),
+                                                                 final_size=(image_row-32, image_col-32),
                                                                  num_masks=num_mask_channels, num_channels=num_channels)
         # 将图片水平翻转然后预测
         image_v = flip_axis(image, 1)
-        predicted_mask_v = extra_functions.make_prediction_cropped(model, image_v, initial_size=(112, 112),
-                                                                   final_size=(112 - 32, 112 - 32),
+        predicted_mask_v = extra_functions.make_prediction_cropped(model, image_v, initial_size=(image_row, image_col),
+                                                                   final_size=(image_row - 32, image_col - 32),
                                                                    num_masks=1,
                                                                    num_channels=num_channels)
         # 将图片竖直翻转然后预测
         image_h = flip_axis(image, 2)
-        predicted_mask_h = extra_functions.make_prediction_cropped(model, image_h, initial_size=(112, 112),
-                                                                   final_size=(112 - 32, 112 - 32),
+        predicted_mask_h = extra_functions.make_prediction_cropped(model, image_h, initial_size=(image_row, image_col),
+                                                                   final_size=(image_row - 32, image_col - 32),
                                                                    num_masks=1,
                                                                    num_channels=num_channels)
-        # 将图片交换维度，然后预测
-        image_s = image.swapaxes(1, 2)
-        predicted_mask_s = extra_functions.make_prediction_cropped(model, image_s, initial_size=(112, 112),
-                                                                   final_size=(112 - 32, 112 - 32),
-                                                                   num_masks=1,
-                                                                num_channels=num_channels)
+        # # 将图片交换维度，然后预测
+        # image_s = image.swapaxes(1, 2)
+        # predicted_mask_s = extra_functions.make_prediction_cropped(model, image_s, initial_size=(112, 112),
+        #                                                            final_size=(112 - 32, 112 - 32),
+        #                                                            num_masks=1,
+        #                                                         num_channels=num_channels)
         # 将以上4种预测结果合并
+        # new_mask = np.power(predicted_mask *
+        #                     flip_axis(predicted_mask_v, 1) *
+        #                     flip_axis(predicted_mask_h, 2) *
+        #                     predicted_mask_s.swapaxes(1, 2), 0.25)
         new_mask = np.power(predicted_mask *
                             flip_axis(predicted_mask_v, 1) *
-                            flip_axis(predicted_mask_h, 2) *
-                            predicted_mask_s.swapaxes(1, 2), 0.25)
-        ContourImg = cv2.imread(ContourOutDirectory + file_name[0:-4]+".png")
+                            flip_axis(predicted_mask_h, 2), 1/3.0)
+        # ContourImg = cv2.imread(ContourOutDirectory + file_name[0:-4]+".png")
         # print(file_name)
-        ContourImg = ContourImg[:, :, 0]
-        polygons = extra_functions.png2polygons_layer(ContourImg)
-        origin_mask = extra_functions.polygons2new_mask_layer(1024, 1024, polygons)
-        print(jaccard_coef(origin_mask, new_mask[0,:,:]))
-        figure, ax = plt.subplots(1, 2)
-        ax0, ax1 = ax.ravel()
+        # ContourImg = ContourImg[:, :, 0]
+        # polygons = extra_functions.png2polygons_layer(ContourImg)
+        # origin_mask = extra_functions.polygons2new_mask_layer(1024, 1024, polygons)
+        # figure, ax = plt.subplots(1, 2)
+        # ax0, ax1 = ax.ravel()
         # np.set_printoptions(suppress=True)
         # 使得坐标轴的比例相同
-        ax1.set_aspect(1)
-        ax0.imshow(origin_mask, cmap='gray')
-        ax1.imshow(new_mask[0,:,:],cmap='gray')
-        # 展示
-        plt.plot()
-        plt.savefig("../test-pic/%s.png" %(file_name[0:-4]))
+        # ax1.set_aspect(1)
+        # ax0.imshow(origin_mask, cmap='gray')
+        polygons = extra_functions.mask2polygons_layer_new(new_mask*255)
+        result += [(file_name[0:-4], shapely.wkt.dumps(polygons))]
+        # new_mask = extra_functions.polygons2new_mask_layer(1024, 1024, polygons)
+        # print(jaccard_coef(origin_mask, new_mask))
+        # ax1.imshow(new_mask,cmap='gray')
+        # # 展示
+        # plt.plot()
+        # plt.savefig("../test-pic/%s.png" %(file_name[0:-4]))
         num+=1
-        if num == 10:
+        if num == 100:
             break
-        # new_mask=new_mask*2047
-        # new_maks=new_mask.astype(np.int32)
-        # new_mask=np.transpose(new_mask,(1,2,0))
-        # cv2.imwrite("../data/image_train/%s.jpg" % file_name, new_mask)
-        # # 得到kaggle所要求的grid坐标
-        # x_scaler, y_scaler = extra_functions.get_scalers(H, W, x_max, y_min)
 
-#     mask_channel = 5
-#     result += [(image_id, mask_channel + 1, mask2poly(new_mask, threashold, x_scaler, y_scaler))]
-#
-# submission = pd.DataFrame(result, columns=['ImageId', 'ClassType', 'MultipolygonWKT'])
-#
-#
-# sample = sample.drop('MultipolygonWKT', 1)
-# submission = sample.merge(submission, on=['ImageId', 'ClassType'], how='left').fillna('MULTIPOLYGON EMPTY')
-#
-# submission.to_csv('temp_crops_4.csv', index=False)
+resultCSV = pd.DataFrame(result, columns=['file_name', 'MultipolygonWKT'])
+resultCSV.to_csv("../result.csv", index=False)
+print("resultCSV文件生成成功！")

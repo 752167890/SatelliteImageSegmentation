@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="On explicit save action" serverName="农田管家" showDifferentInSync="false" showNewOnTargetInSync="false" showExcludedInSync="true">
+  <component name="PublishConfigData" autoUpload="On explicit save action" serverName="34-内网穿透" showDifferentInSync="false" showNewOnTargetInSync="false" showExcludedInSync="true">
     <serverData>
-      <paths name="农田管家">
+      <paths name="34-内网穿透">
         <serverdata>
           <mappings>
-            <mapping deploy="satellite" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="Satellite" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

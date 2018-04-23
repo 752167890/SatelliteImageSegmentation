@@ -2,7 +2,10 @@
 from __future__ import division
 
 from shapely.wkt import loads as wkt_loads
-
+import matplotlib
+# Force matplotlib to not use any Xwindows backend.
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import os
 import shapely
 import shapely.geometry
@@ -192,6 +195,74 @@ def png2polygons_layer(img):
                 p = p.buffer(0)
                 assert p.is_valid, "Contour %r did not make valid polygon %s because %s" % (
                 p, p.wkt, explain_validity(p))
+            polygonList.append(p)
+    # approximating polygons might have created invalid ones, fix them
+    all_polygons = MultiPolygon(polygonList)
+
+    all_polygons = fix_invalid_polygons(all_polygons)
+
+    return all_polygons
+
+
+def mask2polygons_layer_new(mask, min_area=200.0):
+    # first, find contours with cv2: it's much faster than shapely
+    # 如果没有轮廓，则不需要处理
+    image_row=mask.shape[1]
+    image_col=mask.shape[2]
+    mask = 255-np.round(mask)
+    mask = mask > 200
+    mask = mask*255
+    padding = 200
+    # 100为padding部分，解决边界问题
+    image = np.ones((image_row+2*padding, image_col+2*padding), dtype=np.uint8) * 255
+    image[padding:(image_row+padding), padding:(image_col+padding)] = mask
+    img = image
+    contours = measure.find_contours(img, 0.8) # 绘制轮廓
+    # figure, ax = plt.subplots(1, 2)
+    # ax0, ax1 = ax.ravel()
+    # ax0.imshow(img, interpolation='nearest', cmap=plt.cm.gray)
+    # ax1.set_aspect(1)
+    # for n, contour in enumerate(contours):
+    #     ax1.plot(contour[:, 1], contour[:, 0], linewidth=2)
+    # plt.xlim((0,1024+2*padding))
+    # plt.ylim((1024+2*padding,0))
+    # plt.plot()
+    # plt.savefig("test.png")
+    if not contours:
+        return MultiPolygon()
+    else:
+        polygonList = []
+        for k in range(len(contours)):
+            i = 0
+            if len(contours[k]) < 6:
+                continue
+            pointList = []
+            while i < contours[k].shape[0]:
+                xy = contours[k][i]
+                if xy[0] < padding / 2 or xy[0] > image_row + padding * 3 / 2 or xy[1] < padding / 2 or xy[1] > image_col + padding * 3 / 2:
+                    contours[k] = np.delete(contours[k], i, 0)
+                elif padding / 2 <= xy[0] < padding:
+                        xy[0] = padding
+                elif image_row + padding < xy[0] <= image_row + padding * 3 / 2:
+                        xy[0] = 1024 + padding
+                elif padding / 2 <= xy[1] < padding:
+                        xy[1] = padding
+                elif image_col + padding < xy[1] <= image_col + padding * 3 / 2:
+                        xy[1] = image_col + padding
+                xy[0] = xy[0] - padding
+                xy[1] = xy[1] - padding
+                temp = xy[0]
+                xy[0] = xy[1]
+                xy[1] = temp
+                pointList.append(xy)
+                i += 1
+            p = Polygon(pointList)
+            if not p.is_valid:
+                p = p.buffer(0)
+                assert p.is_valid, "Contour %r did not make valid polygon %s because %s" % (
+                p, p.wkt, explain_validity(p))
+            if p.area<min_area:
+                continue
             polygonList.append(p)
     # approximating polygons might have created invalid ones, fix them
     all_polygons = MultiPolygon(polygonList)

@@ -2,12 +2,12 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="8334be1d-717e-497b-beb4-e611228c09f5" name="农田管家" url="http://10.0.1.13">
-        <fileTransfer host="10.0.1.13" port="22" rootFolder="/home/worker" accessType="SFTP">
+      <webServer id="8334be1d-717e-497b-beb4-e611228c09f5" name="34-内网穿透" url="http://47.74.254.25">
+        <fileTransfer host="47.74.254.25" port="6000" rootFolder="/home/hbr" accessType="SFTP">
           <advancedOptions>
             <advancedOptions controlEncoding="utf-8" dataProtectionLevel="Private" />
           </advancedOptions>
-          <option name="port" value="22" />
+          <option name="port" value="6000" />
         </fileTransfer>
       </webServer>
     </option>

@@ -21,7 +21,7 @@ from keras.backend import binary_crossentropy
 import datetime
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import random
 import threading
 
@@ -310,14 +310,14 @@ if __name__ == '__main__':
     # 获取每个训练图片的id
     train_ids = np.array(f['file_name'])
     batch_size = 128
-    nb_epoch = 50
+    nb_epoch = 70
 
     history = History()
     callbacks = [
         history,
     ]
 
-    suffix = 'crops_5_'
+    suffix = 'crops_4_'
     # https://keras-cn.readthedocs.io/en/latest/other/metrics/
     # metrics:性能评估函数类似与目标函数, 只不过该性能的评估结果讲不会用于训练.
     model.compile(optimizer=Nadam(lr=1e-3), loss=jaccard_coef_loss, metrics=['binary_crossentropy', jaccard_coef_int])
@@ -326,7 +326,7 @@ if __name__ == '__main__':
         batch_generator(X_train, y_train, batch_size, horizontal_flip=True, vertical_flip=True, swap_axis=False),
         nb_epoch=nb_epoch,
         verbose=1,
-        samples_per_epoch=batch_size * 800,
+        samples_per_epoch=batch_size * 400,
         callbacks=callbacks,
         nb_worker=16
     )
